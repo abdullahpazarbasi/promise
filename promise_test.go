@@ -6,6 +6,8 @@ import (
 )
 
 func TestNew(t *testing.T) {
-	p := New[bool]()
+	p := New[bool](func() (bool, error) {
+		return false, nil
+	})
 	assert.NotNil(t, p)
 }

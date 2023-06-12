@@ -7,6 +7,7 @@ import (
 )
 
 type Future[T any] struct {
+	async                func() (T, error)
 	timeOutLimit         time.Duration
 	doOnResolved         func(T)
 	doOnRejected         func(error)
@@ -71,11 +72,11 @@ func (p *Future[T]) OnTimedOut(onTimedOut func()) Promise[T] {
 	return p
 }
 
-func (p *Future[T]) Commit(async func() (T, error)) Promise[T] {
+func (p *Future[T]) Commit() Promise[T] {
 	var progress *Progress[T]
 	p.committedOnce.Do(func() {
 		if p.doOnTimedOut != nil && p.timeOutLimit == 0 {
-			panic("on-timed-out is determined although time-out limit is not declared")
+			panic(proprietyError("on-timed-out is determined although time-out limit is not declared"))
 		}
 		progress = &Progress[T]{
 			doOnResolved:      p.doOnResolved,
@@ -96,7 +97,7 @@ func (p *Future[T]) Commit(async func() (T, error)) Promise[T] {
 		go func() {
 			defer progress.handleProbablePanic()
 
-			val, err := async()
+			val, err := p.async()
 			if err != nil {
 				progress.reject(err)
 
@@ -109,10 +110,10 @@ func (p *Future[T]) Commit(async func() (T, error)) Promise[T] {
 	return progress
 }
 
-func (p *Future[T]) Cancel() Promise[T] {
-	panic("a promise which is not committed can not be canceled")
+func (p *Future[T]) Cancel() {
+	panic(proprietyError("a promise which is not committed can not be canceled"))
 }
 
 func (p *Future[T]) Await() (T, error) {
-	panic("a promise which is not committed can not be awaited")
+	panic(proprietyError("a promise which is not committed can not be awaited"))
 }

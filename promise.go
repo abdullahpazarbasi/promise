@@ -12,13 +12,14 @@ type Promise[T any] interface {
 	OnCompleted(onCompleted func()) Promise[T]
 	OnCanceled(onCanceled func()) Promise[T]
 	OnTimedOut(onTimedOut func()) Promise[T]
-	Commit(async func() (T, error)) Promise[T]
-	Cancel() Promise[T]
+	Commit() Promise[T]
+	Cancel()
 	Await() (T, error)
 }
 
-func New[T any]() Promise[T] {
+func New[T any](async func() (T, error)) Promise[T] {
 	return &Future[T]{
+		async:             async,
 		timeOutLimit:      0,
 		fulfilmentChannel: make(chan struct{}),
 		committedOnce:     sync.Once{},

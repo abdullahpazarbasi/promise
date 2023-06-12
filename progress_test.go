@@ -9,11 +9,11 @@ import (
 
 func TestProgress_Cancel(t *testing.T) {
 	t.Run("against parallel call", func(t *testing.T) {
-		p := New[bool]().Commit(func() (bool, error) {
+		p := New[bool](func() (bool, error) {
 			time.Sleep(500 * time.Millisecond)
 
 			return true, nil
-		})
+		}).Commit()
 		go func() {
 			time.Sleep(200 * time.Millisecond)
 			p.Cancel()
@@ -26,11 +26,11 @@ func TestProgress_Cancel(t *testing.T) {
 	})
 
 	t.Run("against paid-off promise", func(t *testing.T) {
-		p := New[bool]().Commit(func() (bool, error) {
+		p := New(func() (bool, error) {
 			time.Sleep(500 * time.Millisecond)
 
 			return true, nil
-		})
+		}).Commit()
 		actualResult, err := p.Await()
 		p.Cancel()
 		assert.True(t, actualResult)
@@ -40,24 +40,24 @@ func TestProgress_Cancel(t *testing.T) {
 
 func TestProgress_Await(t *testing.T) {
 	t.Run("against no deadline", func(t *testing.T) {
-		p := New[bool]()
-		actualResult, err := p.Commit(func() (bool, error) {
+		p := New[bool](func() (bool, error) {
 			time.Sleep(500 * time.Millisecond)
 
 			return true, nil
-		}).Await()
+		})
+		actualResult, err := p.Commit().Await()
 		if assert.NoError(t, err) {
 			assert.True(t, actualResult)
 		}
 	})
 
 	t.Run("against early deadline", func(t *testing.T) {
-		p := New[bool]().TimeOutLimit(100 * time.Millisecond)
-		actualResult, err := p.Commit(func() (bool, error) {
+		p := New[bool](func() (bool, error) {
 			time.Sleep(500 * time.Millisecond)
 
 			return true, nil
-		}).Await()
+		}).TimeOutLimit(100 * time.Millisecond)
+		actualResult, err := p.Commit().Await()
 		assert.False(t, actualResult)
 		if assert.Error(t, err) {
 			assert.IsType(t, context.DeadlineExceeded, err)

@@ -8,55 +8,61 @@ import (
 )
 
 func TestFuture_TimeOutLimit(t *testing.T) {
-	actualPromise := New[string]().TimeOutLimit(200 * time.Millisecond)
+	actualPromise := New[string](func() (string, error) {
+		return "", nil
+	}).TimeOutLimit(200 * time.Millisecond)
 	assert.Equal(t, 200*time.Millisecond, actualPromise.(*Future[string]).timeOutLimit)
 }
 
 func TestFuture_OnResolved(t *testing.T) {
 	var jar string
-	New[string]().OnResolved(func(s string) {
-		jar = s
-	}).Commit(func() (string, error) {
+	New(func() (string, error) {
 		return "OK", nil
-	}).Await()
+	}).OnResolved(func(s string) {
+		jar = s
+	}).Commit().Await()
 	assert.Equal(t, "OK", jar)
 }
 
 func TestFuture_OnRejected(t *testing.T) {
 	var jar error
-	New[string]().OnRejected(func(err error) {
-		jar = err
-	}).Commit(func() (string, error) {
+	New[string](func() (string, error) {
 		return "", fmt.Errorf("failed")
-	}).Await()
+	}).OnRejected(func(err error) {
+		jar = err
+	}).Commit().Await()
 	assert.Equal(t, "failed", jar.Error())
 }
 
 func TestFuture_OnCompleted(t *testing.T) {
 	t.Run("against resolution", func(t *testing.T) {
 		var hit bool
-		New[string]().OnCompleted(func() {
-			hit = true
-		}).Commit(func() (string, error) {
+		New[string](func() (string, error) {
 			return "OK", nil
-		}).Await()
+		}).OnCompleted(func() {
+			hit = true
+		}).Commit().Await()
 		assert.True(t, hit)
 	})
 
 	t.Run("against rejection", func(t *testing.T) {
 		var hit bool
-		New[string]().OnCompleted(func() {
-			hit = true
-		}).Commit(func() (string, error) {
+		New(func() (string, error) {
 			return "", fmt.Errorf("failed")
-		}).Await()
+		}).OnCompleted(func() {
+			hit = true
+		}).Commit().Await()
 		assert.True(t, hit)
 	})
 }
 
 func TestFuture_OnCanceled(t *testing.T) {
 	var resolved, rejected, completed, canceled, timedOut bool
-	p := New[string]().TimeOutLimit(
+	p := New(func() (string, error) {
+		time.Sleep(500 * time.Millisecond)
+
+		return "OK", nil
+	}).TimeOutLimit(
 		10 * time.Second,
 	).OnResolved(func(s string) {
 		resolved = true
@@ -68,11 +74,7 @@ func TestFuture_OnCanceled(t *testing.T) {
 		canceled = true
 	}).OnTimedOut(func() {
 		timedOut = true
-	}).Commit(func() (string, error) {
-		time.Sleep(500 * time.Millisecond)
-
-		return "OK", nil
-	})
+	}).Commit()
 	go func() {
 		time.Sleep(200 * time.Millisecond)
 		p.Cancel()
@@ -87,7 +89,11 @@ func TestFuture_OnCanceled(t *testing.T) {
 
 func TestFuture_OnTimedOut(t *testing.T) {
 	var resolved, rejected, completed, canceled, timedOut bool
-	p := New[string]().TimeOutLimit(
+	p := New[string](func() (string, error) {
+		time.Sleep(500 * time.Millisecond)
+
+		return "OK", nil
+	}).TimeOutLimit(
 		200 * time.Millisecond,
 	).OnResolved(func(s string) {
 		resolved = true
@@ -99,11 +105,7 @@ func TestFuture_OnTimedOut(t *testing.T) {
 		canceled = true
 	}).OnTimedOut(func() {
 		timedOut = true
-	}).Commit(func() (string, error) {
-		time.Sleep(500 * time.Millisecond)
-
-		return "OK", nil
-	})
+	}).Commit()
 	p.Await()
 	assert.False(t, resolved)
 	assert.False(t, rejected)
@@ -114,18 +116,18 @@ func TestFuture_OnTimedOut(t *testing.T) {
 
 func TestFuture_Commit(t *testing.T) {
 	t.Run("against fulfilment", func(t *testing.T) {
-		actualResult, err := New[string]().Commit(func() (string, error) {
+		actualResult, err := New(func() (string, error) {
 			return "OK", nil
-		}).Await()
+		}).Commit().Await()
 		if assert.NoError(t, err) {
 			assert.Equal(t, "OK", actualResult)
 		}
 	})
 
 	t.Run("against failure", func(t *testing.T) {
-		actualResult, err := New[string]().Commit(func() (string, error) {
+		actualResult, err := New[string](func() (string, error) {
 			return "a", fmt.Errorf("failed")
-		}).Await()
+		}).Commit().Await()
 		assert.Equal(t, "", actualResult)
 		if assert.Error(t, err) {
 			assert.Equal(t, "failed", err.Error())
@@ -133,9 +135,9 @@ func TestFuture_Commit(t *testing.T) {
 	})
 
 	t.Run("against panic", func(t *testing.T) {
-		actualResult, err := New[string]().Commit(func() (string, error) {
+		actualResult, err := New(func() (string, error) {
 			panic("aaaaaaaaaa")
-		}).Await()
+		}).Commit().Await()
 		assert.Equal(t, "", actualResult)
 		if assert.Error(t, err) {
 			assert.Equal(t, "aaaaaaaaaa", err.Error())

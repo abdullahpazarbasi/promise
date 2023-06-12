@@ -22,37 +22,35 @@ type Progress[T any] struct {
 }
 
 func (p *Progress[T]) TimeOutLimit(duration time.Duration) Promise[T] {
-	panic("time-out limit can not be determined in progress")
+	panic(proprietyError("time-out limit can not be determined in progress"))
 }
 
 func (p *Progress[T]) OnResolved(onResolved func(T)) Promise[T] {
-	panic("on-resolved can not be determined in progress")
+	panic(proprietyError("on-resolved can not be determined in progress"))
 }
 
 func (p *Progress[T]) OnRejected(onRejected func(error)) Promise[T] {
-	panic("on-rejected can not be determined in progress")
+	panic(proprietyError("on-rejected can not be determined in progress"))
 }
 
 func (p *Progress[T]) OnCompleted(onCompleted func()) Promise[T] {
-	panic("on-completed can not be determined in progress")
+	panic(proprietyError("on-completed can not be determined in progress"))
 }
 
 func (p *Progress[T]) OnCanceled(onCanceled func()) Promise[T] {
-	panic("on-canceled can not be determined in progress")
+	panic(proprietyError("on-canceled can not be determined in progress"))
 }
 
 func (p *Progress[T]) OnTimedOut(onTimedOut func()) Promise[T] {
-	panic("on-timed-out can not be determined in progress")
+	panic(proprietyError("on-timed-out can not be determined in progress"))
 }
 
-func (p *Progress[T]) Commit(async func() (T, error)) Promise[T] {
-	panic("promise is already committed")
+func (p *Progress[T]) Commit() Promise[T] {
+	panic(alreadyDoneError("promise is already committed"))
 }
 
-func (p *Progress[T]) Cancel() Promise[T] {
+func (p *Progress[T]) Cancel() {
 	p.cancel()
-
-	return p
 }
 
 func (p *Progress[T]) Await() (T, error) {
@@ -70,7 +68,7 @@ func (p *Progress[T]) Await() (T, error) {
 				p.doOnTimedOut()
 			}
 		default:
-			panic("unexpected error")
+			panic(unexpectedCaseError("unexpected error type"))
 		}
 
 		return defaultT, err
