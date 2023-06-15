@@ -8,8 +8,11 @@ import (
 type Map interface {
 	AssureCommitments() Map
 	Cancel()
-	Await()
-	Race()
+	Await() *map[interface{}]struct {
+		out interface{}
+		err error
+	}
+	Race() (key interface{}, out interface{}, err error)
 }
 
 type promiseMap map[interface{}]Promise[interface{}]
@@ -21,10 +24,8 @@ func NewMap(rm map[interface{}]interface{}, defaultTimeOutLimit time.Duration) M
 	pm := make(promiseMap)
 	for k, progressOrFunction := range rm {
 		switch v := progressOrFunction.(type) {
-		case *Future[interface{}]:
+		case Promise[any]:
 			pm[k] = v.TimeOutLimit(defaultTimeOutLimit)
-		case *Progress[interface{}]:
-			pm[k] = v
 		case func() (interface{}, error):
 			pm[k] = New(v).TimeOutLimit(defaultTimeOutLimit)
 		default:
@@ -38,12 +39,7 @@ func NewMap(rm map[interface{}]interface{}, defaultTimeOutLimit time.Duration) M
 func (m *promiseMap) AssureCommitments() Map {
 	nm := make(promiseMap)
 	for k, p := range *m {
-		switch v := p.(type) {
-		case *Future[any]:
-			nm[k] = v.Commit()
-		default:
-			nm[k] = v
-		}
+		nm[k] = p.Commit()
 	}
 
 	return &nm
@@ -58,12 +54,41 @@ func (m *promiseMap) Cancel() {
 	}
 }
 
-func (m *promiseMap) Await() {
-	//TODO implement me
-	panic("implement me")
+func (m *promiseMap) Await() *map[interface{}]struct {
+	out interface{}
+	err error
+} {
+	om := map[interface{}]struct {
+		out interface{}
+		err error
+	}{}
+	for k, p := range *m {
+		select {
+		case <-p.getContext().Done():
+			o, e := p.abandon(p.getContext().Err())
+			om[k] = struct {
+				out interface{}
+				err error
+			}{
+				out: o,
+				err: e,
+			}
+		case r := <-p.getFulfilmentChannel():
+			o, e := p.fulfil(r)
+			om[k] = struct {
+				out interface{}
+				err error
+			}{
+				out: o,
+				err: e,
+			}
+		}
+	}
+
+	return &om
 }
 
-func (m *promiseMap) Race() {
+func (m *promiseMap) Race() (key interface{}, out interface{}, err error) {
 	//TODO implement me
 	panic("implement me")
 }

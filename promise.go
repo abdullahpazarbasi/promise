@@ -1,8 +1,18 @@
 package promise
 
 import (
+	"context"
 	"sync"
 	"time"
+)
+
+type event int
+
+const (
+	EventResolved event = iota
+	EventRejected
+	EventCanceled
+	EventTimedOut
 )
 
 type Promise[T any] interface {
@@ -15,13 +25,22 @@ type Promise[T any] interface {
 	Commit() Promise[T]
 	Cancel()
 	Await() (T, error)
+	getFulfilmentChannel() chan struct {
+		out *T
+		err error
+	}
+	getContext() context.Context
+	fulfil(result struct {
+		out *T
+		err error
+	}) (T, error)
+	abandon(err error) (T, error)
 }
 
 func New[T any](async func() (T, error)) Promise[T] {
 	return &Future[T]{
-		async:             async,
-		timeOutLimit:      0,
-		fulfilmentChannel: make(chan struct{}),
-		committedOnce:     sync.Once{},
+		async:         async,
+		timeOutLimit:  0,
+		committedOnce: sync.Once{},
 	}
 }

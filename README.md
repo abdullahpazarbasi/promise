@@ -17,9 +17,7 @@ This library provides a promise interface
 
 ## To-Do
 
-- All
-- Any
-- Race
+- Finally method
 
 ## Installation
 

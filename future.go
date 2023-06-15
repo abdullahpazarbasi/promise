@@ -14,7 +14,7 @@ type Future[T any] struct {
 	doOnCompleted        func()
 	doOnCanceled         func()
 	doOnTimedOut         func()
-	fulfilmentChannel    chan struct{}
+	doFinally            func(event)
 	timeOutLimitSetOnce  sync.Once
 	doOnResolvedSetOnce  sync.Once
 	doOnRejectedSetOnce  sync.Once
@@ -79,13 +79,17 @@ func (p *Future[T]) Commit() Promise[T] {
 			panic(proprietyError("on-timed-out is determined although time-out limit is not declared"))
 		}
 		progress = &Progress[T]{
-			doOnResolved:      p.doOnResolved,
-			doOnRejected:      p.doOnRejected,
-			doOnCompleted:     p.doOnCompleted,
-			doOnCanceled:      p.doOnCanceled,
-			doOnTimedOut:      p.doOnTimedOut,
-			fulfilmentChannel: p.fulfilmentChannel,
-			doneOnce:          sync.Once{},
+			doOnResolved:  p.doOnResolved,
+			doOnRejected:  p.doOnRejected,
+			doOnCompleted: p.doOnCompleted,
+			doOnCanceled:  p.doOnCanceled,
+			doOnTimedOut:  p.doOnTimedOut,
+			doFinally:     p.doFinally,
+			fulfilmentChannel: make(chan struct {
+				out *T
+				err error
+			}),
+			doneOnce: sync.Once{},
 		}
 		ctx := context.Background()
 		if p.timeOutLimit == 0 {
@@ -97,13 +101,13 @@ func (p *Future[T]) Commit() Promise[T] {
 		go func() {
 			defer progress.handleProbablePanic()
 
-			val, err := p.async()
+			out, err := p.async()
 			if err != nil {
 				progress.reject(err)
 
 				return
 			}
-			progress.resolve(val)
+			progress.resolve(out)
 		}()
 	})
 
@@ -116,4 +120,30 @@ func (p *Future[T]) Cancel() {
 
 func (p *Future[T]) Await() (T, error) {
 	panic(proprietyError("a promise which is not committed can not be awaited"))
+}
+
+func (p *Future[T]) getFulfilmentChannel() chan struct {
+	out *T
+	err error
+} {
+	return nil
+}
+
+func (p *Future[T]) getContext() context.Context {
+	return nil
+}
+
+func (p *Future[T]) fulfil(result struct {
+	out *T
+	err error
+}) (T, error) {
+	var defaultT T
+
+	return defaultT, nil
+}
+
+func (p *Future[T]) abandon(err error) (T, error) {
+	var defaultT T
+
+	return defaultT, nil
 }
