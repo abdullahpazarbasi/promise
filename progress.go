@@ -4,94 +4,73 @@ import (
 	"context"
 	"fmt"
 	"sync"
-	"time"
 )
 
-type Progress[T any] struct {
+type Progress[T any] interface {
+	Cancel()
+	Await() (T, error)
+	await() (T, error)
+	getFulfilmentChannel() chan Output[T]
+	abandon() (T, error)
+}
+
+type progress[T any] struct {
 	doOnResolved      func(T)
 	doOnRejected      func(error)
-	doOnCompleted     func()
 	doOnCanceled      func()
 	doOnTimedOut      func()
 	doFinally         func(event)
-	fulfilmentChannel chan struct {
-		out *T
-		err error
-	}
-	context  context.Context
-	cancel   context.CancelFunc
-	doneOnce sync.Once
+	fulfilmentChannel chan Output[T]
+	context           context.Context
+	cancel            context.CancelFunc
+	key               interface{}
+	doneOnce          sync.Once
 }
 
-func (p *Progress[T]) TimeOutLimit(duration time.Duration) Promise[T] {
-	panic(proprietyError("time-out limit can not be determined in progress"))
+func (p *progress[T]) Cancel() {
+	defer p.cancel()
 }
 
-func (p *Progress[T]) OnResolved(onResolved func(T)) Promise[T] {
-	panic(proprietyError("on-resolved can not be determined in progress"))
+func (p *progress[T]) Await() (T, error) {
+	return p.await()
 }
 
-func (p *Progress[T]) OnRejected(onRejected func(error)) Promise[T] {
-	panic(proprietyError("on-rejected can not be determined in progress"))
-}
-
-func (p *Progress[T]) OnCompleted(onCompleted func()) Promise[T] {
-	panic(proprietyError("on-completed can not be determined in progress"))
-}
-
-func (p *Progress[T]) OnCanceled(onCanceled func()) Promise[T] {
-	panic(proprietyError("on-canceled can not be determined in progress"))
-}
-
-func (p *Progress[T]) OnTimedOut(onTimedOut func()) Promise[T] {
-	panic(proprietyError("on-timed-out can not be determined in progress"))
-}
-
-func (p *Progress[T]) Commit() Promise[T] {
-	return p
-}
-
-func (p *Progress[T]) Cancel() {
-	p.cancel()
-}
-
-func (p *Progress[T]) Await() (T, error) {
+func (p *progress[T]) await() (T, error) {
 	select {
 	case <-p.context.Done():
-		return p.abandon(p.context.Err())
-	case r := <-p.fulfilmentChannel:
-		return p.fulfil(r)
+		return p.abandon()
+	case r, open := <-p.fulfilmentChannel:
+		defer p.cancel()
+		if open {
+			defer close(p.fulfilmentChannel)
+		}
+
+		if r == nil {
+			var zeroT T
+
+			return zeroT, nil
+		}
+
+		return r.Payload(), r.Error()
 	}
 }
 
-func (p *Progress[T]) getFulfilmentChannel() chan struct {
-	out *T
-	err error
-} {
+func (p *progress[T]) getFulfilmentChannel() chan Output[T] {
 	return p.fulfilmentChannel
 }
 
-func (p *Progress[T]) getContext() context.Context {
+func (p *progress[T]) getCancelContext() context.Context {
 	return p.context
 }
 
-func (p *Progress[T]) fulfil(result struct {
-	out *T
-	err error
-}) (T, error) {
-	defer p.cancel()
-
-	if result.out == nil {
-		var defaultT T
-
-		return defaultT, result.err
-	}
-
-	return *result.out, result.err
+func (p *progress[T]) getCancelFunction() context.CancelFunc {
+	return p.cancel
 }
 
-func (p *Progress[T]) abandon(err error) (T, error) {
-	var defaultT T
+func (p *progress[T]) abandon() (T, error) {
+	var zeroT T
+	err := p.context.Err()
+
 	switch err {
 	case context.Canceled:
 		if p.doOnCanceled != nil {
@@ -111,10 +90,10 @@ func (p *Progress[T]) abandon(err error) (T, error) {
 		panic(unexpectedCaseError("unexpected error type"))
 	}
 
-	return defaultT, err
+	return zeroT, err
 }
 
-func (p *Progress[T]) handleProbablePanic() {
+func (p *progress[T]) handleProbablePanic() {
 	err := recover()
 	if err == nil {
 		return
@@ -128,21 +107,11 @@ func (p *Progress[T]) handleProbablePanic() {
 	}
 }
 
-func (p *Progress[T]) resolve(out T) {
+func (p *progress[T]) resolve(out T) {
 	p.doneOnce.Do(func() {
-		p.fulfilmentChannel <- struct {
-			out *T
-			err error
-		}{
-			out: &out,
-			err: nil,
-		}
-		close(p.fulfilmentChannel)
+		p.fulfilmentChannel <- newOutput[T](out, nil).setKey(p.key)
 		if p.doOnResolved != nil {
 			p.doOnResolved(out)
-		}
-		if p.doOnCompleted != nil {
-			p.doOnCompleted()
 		}
 		if p.doFinally != nil {
 			p.doFinally(EventResolved)
@@ -150,21 +119,12 @@ func (p *Progress[T]) resolve(out T) {
 	})
 }
 
-func (p *Progress[T]) reject(err error) {
+func (p *progress[T]) reject(err error) {
 	p.doneOnce.Do(func() {
-		p.fulfilmentChannel <- struct {
-			out *T
-			err error
-		}{
-			out: nil,
-			err: err,
-		}
-		close(p.fulfilmentChannel)
+		var zeroT T
+		p.fulfilmentChannel <- newOutput[T](zeroT, err).setKey(p.key)
 		if p.doOnRejected != nil {
 			p.doOnRejected(err)
-		}
-		if p.doOnCompleted != nil {
-			p.doOnCompleted()
 		}
 		if p.doFinally != nil {
 			p.doFinally(EventRejected)

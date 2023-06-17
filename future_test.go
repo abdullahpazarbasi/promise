@@ -11,7 +11,7 @@ func TestFuture_TimeOutLimit(t *testing.T) {
 	actualPromise := New[string](func() (string, error) {
 		return "", nil
 	}).TimeOutLimit(200 * time.Millisecond)
-	assert.Equal(t, 200*time.Millisecond, actualPromise.(*Future[string]).timeOutLimit)
+	assert.Equal(t, 200*time.Millisecond, actualPromise.(*future[string]).timeOutLimit)
 }
 
 func TestFuture_OnResolved(t *testing.T) {
@@ -20,7 +20,7 @@ func TestFuture_OnResolved(t *testing.T) {
 		return "OK", nil
 	}).OnResolved(func(s string) {
 		jar = s
-	}).Commit().Await()
+	}).Await()
 	assert.Equal(t, "OK", jar)
 }
 
@@ -30,18 +30,18 @@ func TestFuture_OnRejected(t *testing.T) {
 		return "", fmt.Errorf("failed")
 	}).OnRejected(func(err error) {
 		jar = err
-	}).Commit().Await()
+	}).Await()
 	assert.Equal(t, "failed", jar.Error())
 }
 
-func TestFuture_OnCompleted(t *testing.T) {
+func TestFuture_Finally(t *testing.T) {
 	t.Run("against resolution", func(t *testing.T) {
 		var hit bool
 		New[string](func() (string, error) {
 			return "OK", nil
-		}).OnCompleted(func() {
+		}).Finally(func(e event) {
 			hit = true
-		}).Commit().Await()
+		}).Await()
 		assert.True(t, hit)
 	})
 
@@ -49,15 +49,15 @@ func TestFuture_OnCompleted(t *testing.T) {
 		var hit bool
 		New(func() (string, error) {
 			return "", fmt.Errorf("failed")
-		}).OnCompleted(func() {
+		}).Finally(func(e event) {
 			hit = true
-		}).Commit().Await()
+		}).Await()
 		assert.True(t, hit)
 	})
 }
 
 func TestFuture_OnCanceled(t *testing.T) {
-	var resolved, rejected, completed, canceled, timedOut bool
+	var resolved, rejected, canceled, timedOut, finished bool
 	p := New(func() (string, error) {
 		time.Sleep(500 * time.Millisecond)
 
@@ -68,28 +68,28 @@ func TestFuture_OnCanceled(t *testing.T) {
 		resolved = true
 	}).OnRejected(func(err error) {
 		rejected = true
-	}).OnCompleted(func() {
-		completed = true
 	}).OnCanceled(func() {
 		canceled = true
 	}).OnTimedOut(func() {
 		timedOut = true
+	}).Finally(func(e event) {
+		finished = true
 	}).Commit()
 	go func() {
-		time.Sleep(200 * time.Millisecond)
+		time.Sleep(100 * time.Millisecond)
 		p.Cancel()
 	}()
 	p.Await()
 	assert.False(t, resolved)
 	assert.False(t, rejected)
-	assert.False(t, completed)
 	assert.True(t, canceled)
 	assert.False(t, timedOut)
+	assert.True(t, finished)
 }
 
 func TestFuture_OnTimedOut(t *testing.T) {
-	var resolved, rejected, completed, canceled, timedOut bool
-	p := New[string](func() (string, error) {
+	var resolved, rejected, canceled, timedOut, finished bool
+	New[string](func() (string, error) {
 		time.Sleep(500 * time.Millisecond)
 
 		return "OK", nil
@@ -99,26 +99,25 @@ func TestFuture_OnTimedOut(t *testing.T) {
 		resolved = true
 	}).OnRejected(func(err error) {
 		rejected = true
-	}).OnCompleted(func() {
-		completed = true
 	}).OnCanceled(func() {
 		canceled = true
 	}).OnTimedOut(func() {
 		timedOut = true
-	}).Commit()
-	p.Await()
+	}).Finally(func(e event) {
+		finished = true
+	}).Await()
 	assert.False(t, resolved)
 	assert.False(t, rejected)
-	assert.False(t, completed)
 	assert.False(t, canceled)
 	assert.True(t, timedOut)
+	assert.True(t, finished)
 }
 
 func TestFuture_Commit(t *testing.T) {
 	t.Run("against fulfilment", func(t *testing.T) {
 		actualResult, err := New(func() (string, error) {
 			return "OK", nil
-		}).Commit().Await()
+		}).Await()
 		if assert.NoError(t, err) {
 			assert.Equal(t, "OK", actualResult)
 		}
@@ -127,7 +126,7 @@ func TestFuture_Commit(t *testing.T) {
 	t.Run("against failure", func(t *testing.T) {
 		actualResult, err := New[string](func() (string, error) {
 			return "a", fmt.Errorf("failed")
-		}).Commit().Await()
+		}).Await()
 		assert.Equal(t, "", actualResult)
 		if assert.Error(t, err) {
 			assert.Equal(t, "failed", err.Error())
@@ -137,7 +136,7 @@ func TestFuture_Commit(t *testing.T) {
 	t.Run("against panic", func(t *testing.T) {
 		actualResult, err := New(func() (string, error) {
 			panic("aaaaaaaaaa")
-		}).Commit().Await()
+		}).Await()
 		assert.Equal(t, "", actualResult)
 		if assert.Error(t, err) {
 			assert.Equal(t, "aaaaaaaaaa", err.Error())
