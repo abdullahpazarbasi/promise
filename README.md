@@ -1,6 +1,6 @@
 # Go Promise
 [![Go Report Card](https://goreportcard.com/badge/github.com/abdullahpazarbasi/promise)](https://goreportcard.com/report/github.com/abdullahpazarbasi/promise)
-[![Build Status](https://github.com/abdullahpazarbasi/promise/actions/workflows/test.yml/badge.svg)](https://github.com/abdullahpazarbasi/promise/actions)
+[![Build Status](https://github.com/abdullahpazarbasi/promise/actions/workflows/go.yml/badge.svg)](https://github.com/abdullahpazarbasi/promise/actions)
 [![Go Reference](https://pkg.go.dev/badge/github.com/abdullahpazarbasi/promise.svg)](https://pkg.go.dev/github.com/abdullahpazarbasi/promise)
 
 Promise / Future library for Go
