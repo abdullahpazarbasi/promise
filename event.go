@@ -7,4 +7,5 @@ const (
 	EventRejected
 	EventCanceled
 	EventTimedOut
+	EventEliminated
 )

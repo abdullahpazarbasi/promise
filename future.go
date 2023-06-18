@@ -44,135 +44,135 @@ type future[T any] struct {
 	committedOnce            sync.Once
 }
 
-func (p *future[T]) TimeOutLimit(timeOutLimit time.Duration) Future[T] {
-	p.timeOutLimitSetOnce.Do(func() {
-		p.timeOutLimit = timeOutLimit
+func (f *future[T]) TimeOutLimit(timeOutLimit time.Duration) Future[T] {
+	f.timeOutLimitSetOnce.Do(func() {
+		f.timeOutLimit = timeOutLimit
 	})
 
-	return p
+	return f
 }
 
-func (p *future[T]) OnResolved(doOnResolved func(T)) Future[T] {
-	p.doOnResolvedSetOnce.Do(func() {
-		p.doOnResolved = doOnResolved
+func (f *future[T]) OnResolved(doOnResolved func(T)) Future[T] {
+	f.doOnResolvedSetOnce.Do(func() {
+		f.doOnResolved = doOnResolved
 	})
 
-	return p
+	return f
 }
 
-func (p *future[T]) OnRejected(doOnRejected func(error)) Future[T] {
-	p.doOnRejectedSetOnce.Do(func() {
-		p.doOnRejected = doOnRejected
+func (f *future[T]) OnRejected(doOnRejected func(error)) Future[T] {
+	f.doOnRejectedSetOnce.Do(func() {
+		f.doOnRejected = doOnRejected
 	})
 
-	return p
+	return f
 }
 
-func (p *future[T]) OnCanceled(doOnCanceled func()) Future[T] {
-	p.doOnCanceledSetOnce.Do(func() {
-		p.doOnCanceled = doOnCanceled
+func (f *future[T]) OnCanceled(doOnCanceled func()) Future[T] {
+	f.doOnCanceledSetOnce.Do(func() {
+		f.doOnCanceled = doOnCanceled
 	})
 
-	return p
+	return f
 }
 
-func (p *future[T]) OnTimedOut(onTimedOut func()) Future[T] {
-	p.doOnTimedOutSetOnce.Do(func() {
-		p.doOnTimedOut = onTimedOut
+func (f *future[T]) OnTimedOut(onTimedOut func()) Future[T] {
+	f.doOnTimedOutSetOnce.Do(func() {
+		f.doOnTimedOut = onTimedOut
 	})
 
-	return p
+	return f
 }
 
-func (p *future[T]) Finally(doFinally func(event)) Future[T] {
-	p.doFinallySetOnce.Do(func() {
-		p.doFinally = doFinally
+func (f *future[T]) Finally(doFinally func(event)) Future[T] {
+	f.doFinallySetOnce.Do(func() {
+		f.doFinally = doFinally
 	})
 
-	return p
+	return f
 }
 
-func (p *future[T]) Commit() Progress[T] {
-	return p.commit()
+func (f *future[T]) Commit() Progress[T] {
+	return f.commit()
 }
 
-func (p *future[T]) Await() (T, error) {
-	return p.commit().await()
+func (f *future[T]) Await() (T, error) {
+	return f.commit().await()
 }
 
-func (p *future[T]) commit() Progress[T] {
-	var ps *progress[T]
-	p.committedOnce.Do(func() {
-		if p.doOnTimedOut != nil && p.timeOutLimit == 0 {
+func (f *future[T]) commit() Progress[T] {
+	var pro *progress[T]
+	f.committedOnce.Do(func() {
+		if f.doOnTimedOut != nil && f.timeOutLimit == 0 {
 			panic(proprietyError("on-timed-out is determined although time-out limit is not declared"))
 		}
-		p.fulfilmentChannelSetOnce.Do(func() {
-			p.fulfilmentChannel = make(chan Output[T], 1)
+		f.fulfilmentChannelSetOnce.Do(func() {
+			f.fulfilmentChannel = make(chan Output[T], 1)
 		})
-		p.cancelContextSetOnce.Do(func() {
+		f.cancelContextSetOnce.Do(func() {
 			ctx := context.Background()
-			if p.timeOutLimit == 0 {
-				p.cancelContext, p.cancel = context.WithCancel(ctx)
+			if f.timeOutLimit == 0 {
+				f.cancelContext, f.cancel = context.WithCancel(ctx)
 			} else {
-				p.cancelContext, p.cancel = context.WithTimeout(ctx, p.timeOutLimit)
+				f.cancelContext, f.cancel = context.WithTimeout(ctx, f.timeOutLimit)
 			}
 		})
-		ps = &progress[T]{
-			doOnResolved:      p.doOnResolved,
-			doOnRejected:      p.doOnRejected,
-			doOnCanceled:      p.doOnCanceled,
-			doOnTimedOut:      p.doOnTimedOut,
-			doFinally:         p.doFinally,
-			fulfilmentChannel: p.fulfilmentChannel,
-			context:           p.cancelContext,
-			cancel:            p.cancel,
-			key:               p.key,
+		pro = &progress[T]{
+			doOnResolved:      f.doOnResolved,
+			doOnRejected:      f.doOnRejected,
+			doOnCanceled:      f.doOnCanceled,
+			doOnTimedOut:      f.doOnTimedOut,
+			doFinally:         f.doFinally,
+			fulfilmentChannel: f.fulfilmentChannel,
+			context:           f.cancelContext,
+			cancel:            f.cancel,
+			key:               f.key,
 			doneOnce:          sync.Once{},
 		}
 
 		go func() {
-			defer ps.handleProbablePanic()
+			defer pro.handleProbablePanic()
 
-			out, err := p.async()
+			pay, err := f.async()
 			if err != nil {
-				ps.reject(err)
+				pro.reject(err)
 
 				return
 			}
-			ps.resolve(out)
+			pro.resolve(pay)
 		}()
 	})
 
-	return ps
+	return pro
 }
 
-func (p *future[T]) setKey(key interface{}) Future[T] {
-	p.key = key
+func (f *future[T]) setKey(key interface{}) Future[T] {
+	f.key = key
 
-	return p
+	return f
 }
 
-func (p *future[T]) setFulfilmentChannel(fulfilmentChannel chan Output[T]) Future[T] {
-	p.fulfilmentChannelSetOnce.Do(func() {
-		p.fulfilmentChannel = fulfilmentChannel
+func (f *future[T]) setFulfilmentChannel(fulfilmentChannel chan Output[T]) Future[T] {
+	f.fulfilmentChannelSetOnce.Do(func() {
+		f.fulfilmentChannel = fulfilmentChannel
 	})
 
-	return p
+	return f
 }
 
-func (p *future[T]) setContext(cancelContext context.Context, cancel context.CancelFunc) Future[T] {
-	p.cancelContextSetOnce.Do(func() {
-		p.cancelContext = cancelContext
-		p.cancel = cancel
+func (f *future[T]) setContext(cancelContext context.Context, cancel context.CancelFunc) Future[T] {
+	f.cancelContextSetOnce.Do(func() {
+		f.cancelContext = cancelContext
+		f.cancel = cancel
 	})
 
-	return p
+	return f
 }
 
-func (p *future[T]) getCancelContext() context.Context {
-	return p.cancelContext
+func (f *future[T]) getCancelContext() context.Context {
+	return f.cancelContext
 }
 
-func (p *future[T]) getCancelFunction() context.CancelFunc {
-	return p.cancel
+func (f *future[T]) getCancelFunction() context.CancelFunc {
+	return f.cancel
 }

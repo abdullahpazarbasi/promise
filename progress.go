@@ -11,7 +11,9 @@ type Progress[T any] interface {
 	Await() (T, error)
 	await() (T, error)
 	getFulfilmentChannel() chan Output[T]
-	abandon() (T, error)
+	abandon(err error)
+	leave(err error)
+	eliminate()
 }
 
 type progress[T any] struct {
@@ -36,19 +38,28 @@ func (p *progress[T]) Await() (T, error) {
 }
 
 func (p *progress[T]) await() (T, error) {
+	var z T
 	select {
 	case <-p.context.Done():
-		return p.abandon()
-	case r, open := <-p.fulfilmentChannel:
+		var e error
+		switch p.context.Err() {
+		case context.Canceled:
+			e = canceledError("manually canceled")
+			p.abandon(e)
+		case context.DeadlineExceeded:
+			e = timedOutError("timed-out")
+			p.leave(e)
+		}
+
+		return z, e
+	case r, o := <-p.fulfilmentChannel:
 		defer p.cancel()
-		if open {
+		if o {
 			defer close(p.fulfilmentChannel)
 		}
 
 		if r == nil {
-			var zeroT T
-
-			return zeroT, nil
+			return z, nil
 		}
 
 		return r.Payload(), r.Error()
@@ -67,51 +78,55 @@ func (p *progress[T]) getCancelFunction() context.CancelFunc {
 	return p.cancel
 }
 
-func (p *progress[T]) abandon() (T, error) {
-	var zeroT T
-	err := p.context.Err()
-
-	switch err {
-	case context.Canceled:
+func (p *progress[T]) abandon(err error) {
+	p.doneOnce.Do(func() {
 		if p.doOnCanceled != nil {
 			p.doOnCanceled()
 		}
 		if p.doFinally != nil {
 			p.doFinally(EventCanceled)
 		}
-	case context.DeadlineExceeded:
+	})
+}
+
+func (p *progress[T]) leave(err error) {
+	p.doneOnce.Do(func() {
 		if p.doOnTimedOut != nil {
 			p.doOnTimedOut()
 		}
 		if p.doFinally != nil {
 			p.doFinally(EventTimedOut)
 		}
-	default:
-		panic(unexpectedCaseError("unexpected error type"))
-	}
+	})
+}
 
-	return zeroT, err
+func (p *progress[T]) eliminate() {
+	p.doneOnce.Do(func() {
+		if p.doFinally != nil {
+			p.doFinally(EventEliminated)
+		}
+	})
 }
 
 func (p *progress[T]) handleProbablePanic() {
-	err := recover()
-	if err == nil {
+	e := recover()
+	if e == nil {
 		return
 	}
 
-	switch e := err.(type) {
+	switch v := e.(type) {
 	case error:
-		p.reject(e)
+		p.reject(v)
 	default:
-		p.reject(fmt.Errorf("%+v", e))
+		p.reject(fmt.Errorf("%+v", v))
 	}
 }
 
-func (p *progress[T]) resolve(out T) {
+func (p *progress[T]) resolve(pay T) {
 	p.doneOnce.Do(func() {
-		p.fulfilmentChannel <- newOutput[T](out, nil).setKey(p.key)
+		p.fulfilmentChannel <- newOutput[T](pay, nil).setKey(p.key)
 		if p.doOnResolved != nil {
-			p.doOnResolved(out)
+			p.doOnResolved(pay)
 		}
 		if p.doFinally != nil {
 			p.doFinally(EventResolved)
@@ -121,8 +136,8 @@ func (p *progress[T]) resolve(out T) {
 
 func (p *progress[T]) reject(err error) {
 	p.doneOnce.Do(func() {
-		var zeroT T
-		p.fulfilmentChannel <- newOutput[T](zeroT, err).setKey(p.key)
+		var z T
+		p.fulfilmentChannel <- newOutput[T](z, err).setKey(p.key)
 		if p.doOnRejected != nil {
 			p.doOnRejected(err)
 		}

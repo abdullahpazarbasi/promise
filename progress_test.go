@@ -1,7 +1,6 @@
 package promise
 
 import (
-	"context"
 	"github.com/stretchr/testify/assert"
 	"testing"
 	"time"
@@ -21,7 +20,7 @@ func TestProgress_Cancel(t *testing.T) {
 		actualResult, err := p.Await()
 		assert.False(t, actualResult)
 		if assert.Error(t, err) {
-			assert.IsType(t, context.Canceled, err)
+			assert.IsType(t, canceledError(""), err)
 		}
 	})
 
@@ -60,7 +59,7 @@ func TestProgress_Await(t *testing.T) {
 		actualResult, err := p.Commit().Await()
 		assert.False(t, actualResult)
 		if assert.Error(t, err) {
-			assert.IsType(t, context.DeadlineExceeded, err)
+			assert.IsType(t, timedOutError(""), err)
 		}
 	})
 }

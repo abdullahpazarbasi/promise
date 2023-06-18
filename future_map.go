@@ -18,8 +18,7 @@ func (fm *futureMap[T]) Await() *map[interface{}]Output[T] {
 }
 
 func (fm *futureMap[T]) Race() (key interface{}, pay T, err error) {
-	//TODO implement me
-	panic("implement me")
+	return fm.commit().race()
 }
 
 func (fm *futureMap[T]) commit() ProgressMap[T] {
