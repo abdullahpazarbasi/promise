@@ -3,6 +3,6 @@ package promise
 import "context"
 
 type cancelableContextProvider interface {
-	getCancelContext() context.Context
+	getContext() context.Context
 	getCancelFunction() context.CancelFunc
 }

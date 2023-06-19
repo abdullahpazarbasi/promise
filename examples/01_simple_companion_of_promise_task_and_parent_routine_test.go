@@ -1,6 +1,7 @@
 package examples
 
 import (
+	"context"
 	"fmt"
 	"github.com/abdullahpazarbasi/promise"
 	"github.com/stretchr/testify/require"
@@ -24,8 +25,13 @@ func Test_Simple_Companion_of_Promise_Task_and_Parent_Routine(t *testing.T) {
 	fmt.Println(">  ", "hostname from promise:", hostname)
 }
 
-func getHostname() (string, error) {
-	time.Sleep(200 * time.Millisecond)
+func getHostname(ctx context.Context) (string, error) {
+	select {
+	case <-ctx.Done():
+		return "", ctx.Err()
+	default:
+		time.Sleep(200 * time.Millisecond)
 
-	return os.Hostname()
+		return os.Hostname()
+	}
 }

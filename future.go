@@ -8,6 +8,7 @@ import (
 
 type Future[T any] interface {
 	TimeOutLimit(timeOutLimit time.Duration) Future[T]
+	Context(ctx context.Context) Future[T]
 	OnResolved(onResolved func(T)) Future[T]
 	OnRejected(onRejected func(error)) Future[T]
 	OnCanceled(onCanceled func()) Future[T]
@@ -16,21 +17,23 @@ type Future[T any] interface {
 	Commit() Progress[T]
 	Await() (T, error)
 	commit() Progress[T]
+	getTimeOutLimit() time.Duration
 	setKey(key interface{}) Future[T]
 	setFulfilmentChannel(fulfilmentChannel chan Output[T]) Future[T]
-	setContext(cancelContext context.Context, cancel context.CancelFunc) Future[T]
+	setCancelableContextAndCancelFunction(cancelableContext context.Context, cancel context.CancelFunc) Future[T]
 }
 
 type future[T any] struct {
-	async                    func() (T, error)
+	async                    func(ctx context.Context) (T, error)
 	timeOutLimit             time.Duration
+	context                  context.Context
 	doOnResolved             func(T)
 	doOnRejected             func(error)
 	doOnCanceled             func()
 	doOnTimedOut             func()
 	doFinally                func(event)
 	fulfilmentChannel        chan Output[T]
-	cancelContext            context.Context
+	cancelableContext        context.Context
 	cancel                   context.CancelFunc
 	key                      interface{}
 	timeOutLimitSetOnce      sync.Once
@@ -40,13 +43,22 @@ type future[T any] struct {
 	doOnTimedOutSetOnce      sync.Once
 	doFinallySetOnce         sync.Once
 	fulfilmentChannelSetOnce sync.Once
-	cancelContextSetOnce     sync.Once
+	contextSetOnce           sync.Once
+	cancelableContextSetOnce sync.Once
 	committedOnce            sync.Once
 }
 
 func (f *future[T]) TimeOutLimit(timeOutLimit time.Duration) Future[T] {
 	f.timeOutLimitSetOnce.Do(func() {
 		f.timeOutLimit = timeOutLimit
+	})
+
+	return f
+}
+
+func (f *future[T]) Context(ctx context.Context) Future[T] {
+	f.contextSetOnce.Do(func() {
+		f.context = ctx
 	})
 
 	return f
@@ -109,12 +121,14 @@ func (f *future[T]) commit() Progress[T] {
 		f.fulfilmentChannelSetOnce.Do(func() {
 			f.fulfilmentChannel = make(chan Output[T], 1)
 		})
-		f.cancelContextSetOnce.Do(func() {
-			ctx := context.Background()
+		f.contextSetOnce.Do(func() {
+			f.context = context.Background()
+		})
+		f.cancelableContextSetOnce.Do(func() {
 			if f.timeOutLimit == 0 {
-				f.cancelContext, f.cancel = context.WithCancel(ctx)
+				f.cancelableContext, f.cancel = context.WithCancel(f.context)
 			} else {
-				f.cancelContext, f.cancel = context.WithTimeout(ctx, f.timeOutLimit)
+				f.cancelableContext, f.cancel = context.WithTimeout(f.context, f.timeOutLimit)
 			}
 		})
 		pro = &progress[T]{
@@ -124,7 +138,7 @@ func (f *future[T]) commit() Progress[T] {
 			doOnTimedOut:      f.doOnTimedOut,
 			doFinally:         f.doFinally,
 			fulfilmentChannel: f.fulfilmentChannel,
-			context:           f.cancelContext,
+			cancelableContext: f.cancelableContext,
 			cancel:            f.cancel,
 			key:               f.key,
 			doneOnce:          sync.Once{},
@@ -133,7 +147,7 @@ func (f *future[T]) commit() Progress[T] {
 		go func() {
 			defer pro.handleProbablePanic()
 
-			pay, err := f.async()
+			pay, err := f.async(f.cancelableContext)
 			if err != nil {
 				pro.reject(err)
 
@@ -144,6 +158,10 @@ func (f *future[T]) commit() Progress[T] {
 	})
 
 	return pro
+}
+
+func (f *future[T]) getTimeOutLimit() time.Duration {
+	return f.timeOutLimit
 }
 
 func (f *future[T]) setKey(key interface{}) Future[T] {
@@ -160,19 +178,14 @@ func (f *future[T]) setFulfilmentChannel(fulfilmentChannel chan Output[T]) Futur
 	return f
 }
 
-func (f *future[T]) setContext(cancelContext context.Context, cancel context.CancelFunc) Future[T] {
-	f.cancelContextSetOnce.Do(func() {
-		f.cancelContext = cancelContext
+func (f *future[T]) setCancelableContextAndCancelFunction(
+	cancelableContext context.Context,
+	cancel context.CancelFunc,
+) Future[T] {
+	f.cancelableContextSetOnce.Do(func() {
+		f.cancelableContext = cancelableContext
 		f.cancel = cancel
 	})
 
 	return f
-}
-
-func (f *future[T]) getCancelContext() context.Context {
-	return f.cancelContext
-}
-
-func (f *future[T]) getCancelFunction() context.CancelFunc {
-	return f.cancel
 }

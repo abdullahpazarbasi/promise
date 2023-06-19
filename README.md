@@ -2,6 +2,8 @@
 [![Go Report Card](https://goreportcard.com/badge/github.com/abdullahpazarbasi/promise)](https://goreportcard.com/report/github.com/abdullahpazarbasi/promise)
 [![Build Status](https://github.com/abdullahpazarbasi/promise/actions/workflows/go.yml/badge.svg)](https://github.com/abdullahpazarbasi/promise/actions)
 [![Go Reference](https://pkg.go.dev/badge/github.com/abdullahpazarbasi/promise.svg)](https://pkg.go.dev/github.com/abdullahpazarbasi/promise)
+[![GitHub release (latest by date including pre-releases)](https://img.shields.io/github/v/release/abdullahpazarbasi/promise?display_name=tag&include_prereleases)](https://github.com/abdullahpazarbasi/promise/releases)
+[![GitHub](https://img.shields.io/github/license/abdullahpazarbasi/promise)](/LICENSE)
 
 Promise / Future library for Go
 
@@ -15,12 +17,13 @@ This library provides a promise interface similar to JavaScript 's
 - Interface similar to JS 's
 - Cancellable promises
 - Time-out support
+- Context support
 - Promises which can be committed separately
 - Promise maps
 - Race functionality
 - Automatic panic recovery
 - Fluent interface / Chain API
-- No external dependency
+- [No external dependency](https://pkg.go.dev/github.com/abdullahpazarbasi/promise?tab=imports)
 
 ## To-Do
 
@@ -33,6 +36,51 @@ go get github.com/abdullahpazarbasi/promise
 ```
 
 ## Usage
+
+### Basic Usage
+
+```go
+package foo
+
+import (
+	"context"
+	"fmt"
+	"github.com/abdullahpazarbasi/promise"
+	"time"
+)
+
+func myParentRoutine() error {
+	f1 := promise.New(func(ctx context.Context) (string, error) {
+		return "OK", nil
+	})
+	f2 := promise.New(func(ctx context.Context) (bool, error) {
+		return true, nil
+	})
+	fmt.Println("Parallel paths are starting :")
+	p1 := f1.TimeOutLimit(500 * time.Millisecond).Commit()
+	p2 := f2.TimeOutLimit(400 * time.Millisecond).Commit()
+
+	fmt.Println("Doing something on primary parallel path ...")
+
+	fmt.Println("Waiting for one of committed promises")
+	concurrentOutput1, err1 := p1.Await()
+	if err1 != nil {
+		return err1 // output of async function 2 ignored
+	}
+	fmt.Println("Waiting for the other committed promise, may be the task is already done a long time ago")
+	concurrentOutput2, err2 := p2.Await()
+	if err2 != nil {
+		panic(err2)
+	}
+	fmt.Printf("Output of async function 1: %v\n", concurrentOutput1)
+	fmt.Printf("Output of async function 2: %v\n", concurrentOutput2)
+
+	return nil
+}
+
+```
+
+### Other Examples
 
 [examples](/examples)
 

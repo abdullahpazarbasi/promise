@@ -10,15 +10,15 @@ type ProgressMap[T any] interface {
 	race() (key interface{}, pay T, err error)
 }
 
-type progressMap[T any] map[interface{}]Progress[T]
+type progressMap[T any] struct {
+	data              map[interface{}]Progress[T]
+	fulfilmentChannel chan Output[T]
+	cancelableContext context.Context
+	cancel            context.CancelFunc
+}
 
 func (pm *progressMap[T]) Cancel() {
-	var cancel context.CancelFunc
-	for _, p := range *pm {
-		cancel = p.(cancelableContextProvider).getCancelFunction()
-		break
-	}
-	defer cancel()
+	defer pm.cancel()
 }
 
 func (pm *progressMap[T]) Await() *map[interface{}]Output[T] {
@@ -30,121 +30,97 @@ func (pm *progressMap[T]) Race() (key interface{}, pay T, err error) {
 }
 
 func (pm *progressMap[T]) await() *map[interface{}]Output[T] {
-	var k interface{}
-	var p Progress[T]
-	var z T
-	var c context.Context
-	var cancel context.CancelFunc
-	var fc chan Output[T]
-	for k, p = range *pm {
-		c = p.(cancelableContextProvider).getCancelContext()
-		cancel = p.(cancelableContextProvider).getCancelFunction()
-		fc = p.getFulfilmentChannel()
-		break
-	}
+	defer pm.cancel()
 
-	defer cancel()
+	var z T
 
 	om := map[interface{}]Output[T]{}
-	var e error
 	var d bool
 	var o bool
 	var nio Output[T]
-	som := len(*pm)
+	som := len(pm.data)
 	for {
-		select {
-		case <-c.Done():
-			switch c.Err() {
-			case context.Canceled:
-				e = canceledError("manually canceled")
-			case context.DeadlineExceeded:
-				e = timedOutError("timed-out")
-			}
-			for k, p = range *pm {
+		for k, p := range pm.data {
+			c := p.(cancelableContextProvider).getContext()
+			select {
+			case <-c.Done():
 				_, ok := om[k]
 				if !ok {
-					switch e.(type) {
-					case canceledError:
-						p.abandon(e)
-					case timedOutError:
-						p.leave(e)
+					e := c.Err()
+					switch e {
+					case context.Canceled:
+						p.abandon()
+					case context.DeadlineExceeded:
+						p.leave()
 					}
 					om[k] = newOutput(z, e)
 				}
-			}
-
-			return &om
-		case nio, o = <-fc:
-			if o {
-				if !d {
-					d = true
-					defer close(fc)
+				if len(om) >= som {
+					return &om
 				}
-			}
-			om[nio.(keyProvider).Key()] = newOutput(
-				nio.Payload(),
-				nio.Error(),
-			)
-			if len(om) >= som {
-				return &om
+			case nio, o = <-pm.fulfilmentChannel:
+				if o {
+					if !d {
+						d = true
+						defer close(pm.fulfilmentChannel)
+					}
+				}
+				om[nio.(keyProvider).Key()] = newOutput(
+					nio.Payload(),
+					nio.Error(),
+				)
+				if len(om) >= som {
+					return &om
+				}
 			}
 		}
 	}
 }
 
 func (pm *progressMap[T]) race() (key interface{}, pay T, err error) {
-	var k interface{}
-	var p Progress[T]
-	var c context.Context
-	var cancel context.CancelFunc
-	var fc chan Output[T]
-	for _, p = range *pm {
-		c = p.(cancelableContextProvider).getCancelContext()
-		cancel = p.(cancelableContextProvider).getCancelFunction()
-		fc = p.getFulfilmentChannel()
-		break
-	}
+	defer pm.cancel()
 
-	defer cancel()
-
+	om := map[interface{}]bool{}
 	var d bool
-	var o bool
-	var nio Output[T]
+	som := len(pm.data)
 	for {
-		select {
-		case <-c.Done():
-			switch c.Err() {
-			case context.Canceled:
-				err = canceledError("manually canceled")
-			case context.DeadlineExceeded:
-				err = timedOutError("timed-out")
-			}
-			key = nil
-			for _, p = range *pm {
-				switch err.(type) {
-				case canceledError:
-					p.abandon(err)
-				case timedOutError:
-					p.leave(err)
+		for k, p := range pm.data {
+			c := p.(cancelableContextProvider).getContext()
+			select {
+			case <-c.Done():
+				key = nil
+				err = c.Err()
+				switch err {
+				case context.Canceled:
+					p.abandon()
+				case context.DeadlineExceeded:
+					p.leave()
+				}
+				om[k] = true
+				if len(om) >= som {
+					return
+				}
+			case nio, o := <-pm.fulfilmentChannel:
+				if o {
+					if !d {
+						d = true
+						defer close(pm.fulfilmentChannel)
+					}
+				}
+				key = nio.(keyProvider).Key()
+				pay = nio.Payload()
+				err = nio.Error()
+				om[key] = true
+				for kk, pp := range pm.data {
+					if kk != key {
+						pp.eliminate()
+						om[kk] = true
+					}
+				}
+				if len(om) >= som {
+					return
 				}
 			}
-			return
-		case nio, o = <-fc:
-			if o {
-				if !d {
-					d = true
-					defer close(fc)
-				}
-			}
-			key = nio.(keyProvider).Key()
-			pay = nio.Payload()
-			err = nio.Error()
-			for k, p = range *pm {
-				if k != key {
-					p.eliminate()
-				}
-			}
-			return
 		}
 	}
 }

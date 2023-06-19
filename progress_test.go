@@ -1,6 +1,7 @@
 package promise
 
 import (
+	"context"
 	"github.com/stretchr/testify/assert"
 	"testing"
 	"time"
@@ -8,7 +9,7 @@ import (
 
 func TestProgress_Cancel(t *testing.T) {
 	t.Run("against parallel call", func(t *testing.T) {
-		p := New[bool](func() (bool, error) {
+		p := New[bool](func(ctx context.Context) (bool, error) {
 			time.Sleep(500 * time.Millisecond)
 
 			return true, nil
@@ -20,12 +21,12 @@ func TestProgress_Cancel(t *testing.T) {
 		actualResult, err := p.Await()
 		assert.False(t, actualResult)
 		if assert.Error(t, err) {
-			assert.IsType(t, canceledError(""), err)
+			assert.IsType(t, context.Canceled, err)
 		}
 	})
 
 	t.Run("against paid-off promise", func(t *testing.T) {
-		p := New(func() (bool, error) {
+		p := New(func(ctx context.Context) (bool, error) {
 			time.Sleep(500 * time.Millisecond)
 
 			return true, nil
@@ -39,7 +40,7 @@ func TestProgress_Cancel(t *testing.T) {
 
 func TestProgress_Await(t *testing.T) {
 	t.Run("against no deadline", func(t *testing.T) {
-		p := New[bool](func() (bool, error) {
+		p := New[bool](func(ctx context.Context) (bool, error) {
 			time.Sleep(500 * time.Millisecond)
 
 			return true, nil
@@ -51,7 +52,7 @@ func TestProgress_Await(t *testing.T) {
 	})
 
 	t.Run("against early deadline", func(t *testing.T) {
-		p := New[bool](func() (bool, error) {
+		p := New[bool](func(ctx context.Context) (bool, error) {
 			time.Sleep(500 * time.Millisecond)
 
 			return true, nil
@@ -59,7 +60,7 @@ func TestProgress_Await(t *testing.T) {
 		actualResult, err := p.Commit().Await()
 		assert.False(t, actualResult)
 		if assert.Error(t, err) {
-			assert.IsType(t, timedOutError(""), err)
+			assert.IsType(t, context.DeadlineExceeded, err)
 		}
 	})
 }

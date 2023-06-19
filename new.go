@@ -1,10 +1,11 @@
 package promise
 
 import (
+	"context"
 	"sync"
 )
 
-func New[T any](async func() (T, error)) Future[T] {
+func New[T any](async func(ctx context.Context) (T, error)) Future[T] {
 	return &future[T]{
 		async:                    async,
 		timeOutLimit:             0,
@@ -14,7 +15,7 @@ func New[T any](async func() (T, error)) Future[T] {
 		doOnTimedOutSetOnce:      sync.Once{},
 		doFinallySetOnce:         sync.Once{},
 		fulfilmentChannelSetOnce: sync.Once{},
-		cancelContextSetOnce:     sync.Once{},
+		cancelableContextSetOnce: sync.Once{},
 		committedOnce:            sync.Once{},
 	}
 }

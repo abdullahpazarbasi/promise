@@ -1,6 +1,7 @@
 package promise
 
 import (
+	"context"
 	"fmt"
 	"github.com/stretchr/testify/assert"
 	"testing"
@@ -11,19 +12,18 @@ func TestFutureMap_Await(t *testing.T) {
 	t.Run("against 2 resolvable futures", func(t *testing.T) {
 		m := NewMap[any](
 			map[any]any{
-				"my_promise": New(func() (any, error) {
+				"my_promise": New(func(ctx context.Context) (any, error) {
 					time.Sleep(300 * time.Millisecond)
 
 					return "OK", nil
 				}),
-				1: New(func() (any, error) {
+				1: New(func(ctx context.Context) (any, error) {
 					time.Sleep(300 * time.Millisecond)
 
 					return true, nil
 				}),
 			},
-			400*time.Millisecond,
-		)
+		).TimeOutLimit(400 * time.Millisecond)
 		actualResultMap := m.Await()
 		assert.Equal(
 			t,
@@ -38,19 +38,18 @@ func TestFutureMap_Await(t *testing.T) {
 	t.Run("against 2 rejectable futures", func(t *testing.T) {
 		m := NewMap[any](
 			map[any]any{
-				"my_promise": New(func() (any, error) {
+				"my_promise": New(func(ctx context.Context) (any, error) {
 					time.Sleep(300 * time.Millisecond)
 
 					return "", fmt.Errorf("oops")
 				}),
-				1: New(func() (any, error) {
+				1: New(func(ctx context.Context) (any, error) {
 					time.Sleep(300 * time.Millisecond)
 
 					return false, fmt.Errorf("oops")
 				}),
 			},
-			400*time.Millisecond,
-		)
+		).TimeOutLimit(400 * time.Millisecond)
 		actualResultMap := m.Await()
 		assert.Equal(
 			t,
@@ -65,29 +64,28 @@ func TestFutureMap_Await(t *testing.T) {
 	t.Run("against 3 futures, one of them taking too long", func(t *testing.T) {
 		m := NewMap[any](
 			map[any]any{
-				"my_promise": New(func() (any, error) {
+				"my_promise": New(func(ctx context.Context) (any, error) {
 					time.Sleep(100 * time.Millisecond)
 
 					return "OK", nil
 				}),
-				1: New(func() (any, error) {
+				1: New(func(ctx context.Context) (any, error) {
 					time.Sleep(500 * time.Millisecond)
 
 					return 1, nil
 				}),
-				true: New(func() (any, error) {
+				true: New(func(ctx context.Context) (any, error) {
 					time.Sleep(200 * time.Millisecond)
 
 					return true, nil
 				}),
 			},
-			300*time.Millisecond,
-		)
+		).TimeOutLimit(300 * time.Millisecond)
 		actualResultMap := m.Await()
 		assert.Equal(
 			t,
 			map[interface{}]Output[any]{
-				1:            newOutput[any](nil, timedOutError("timed-out")),
+				1:            newOutput[any](nil, context.DeadlineExceeded),
 				true:         newOutput[any](true, nil),
 				"my_promise": newOutput[any]("OK", nil),
 			},
@@ -100,19 +98,18 @@ func TestFutureMap_Race(t *testing.T) {
 	t.Run("against 2 resolvable futures", func(t *testing.T) {
 		m := NewMap[any](
 			map[any]any{
-				"my_promise": New(func() (any, error) {
+				"my_promise": New(func(ctx context.Context) (any, error) {
 					time.Sleep(300 * time.Millisecond)
 
 					return "OK", nil
 				}),
-				1: New(func() (any, error) {
+				1: New(func(ctx context.Context) (any, error) {
 					time.Sleep(200 * time.Millisecond)
 
 					return true, nil
 				}),
 			},
-			400*time.Millisecond,
-		)
+		).TimeOutLimit(400 * time.Millisecond)
 		actualKey, actualPayload, actualError := m.Race()
 		assert.Equal(t, 1, actualKey)
 		assert.Equal(t, true, actualPayload)

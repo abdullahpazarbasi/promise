@@ -1,6 +1,7 @@
 package promise
 
 import (
+	"context"
 	"fmt"
 	"github.com/stretchr/testify/assert"
 	"testing"
@@ -8,7 +9,7 @@ import (
 )
 
 func TestFuture_TimeOutLimit(t *testing.T) {
-	actualPromise := New[string](func() (string, error) {
+	actualPromise := New[string](func(ctx context.Context) (string, error) {
 		return "", nil
 	}).TimeOutLimit(200 * time.Millisecond)
 	assert.Equal(t, 200*time.Millisecond, actualPromise.(*future[string]).timeOutLimit)
@@ -16,7 +17,7 @@ func TestFuture_TimeOutLimit(t *testing.T) {
 
 func TestFuture_OnResolved(t *testing.T) {
 	var jar string
-	New(func() (string, error) {
+	New(func(ctx context.Context) (string, error) {
 		return "OK", nil
 	}).OnResolved(func(s string) {
 		jar = s
@@ -26,7 +27,7 @@ func TestFuture_OnResolved(t *testing.T) {
 
 func TestFuture_OnRejected(t *testing.T) {
 	var jar error
-	New[string](func() (string, error) {
+	New[string](func(ctx context.Context) (string, error) {
 		return "", fmt.Errorf("failed")
 	}).OnRejected(func(err error) {
 		jar = err
@@ -37,7 +38,7 @@ func TestFuture_OnRejected(t *testing.T) {
 func TestFuture_Finally(t *testing.T) {
 	t.Run("against resolution", func(t *testing.T) {
 		var hit bool
-		New[string](func() (string, error) {
+		New[string](func(ctx context.Context) (string, error) {
 			return "OK", nil
 		}).Finally(func(e event) {
 			hit = true
@@ -47,7 +48,7 @@ func TestFuture_Finally(t *testing.T) {
 
 	t.Run("against rejection", func(t *testing.T) {
 		var hit bool
-		New(func() (string, error) {
+		New(func(ctx context.Context) (string, error) {
 			return "", fmt.Errorf("failed")
 		}).Finally(func(e event) {
 			hit = true
@@ -58,7 +59,7 @@ func TestFuture_Finally(t *testing.T) {
 
 func TestFuture_OnCanceled(t *testing.T) {
 	var resolved, rejected, canceled, timedOut, finished bool
-	p := New(func() (string, error) {
+	p := New(func(ctx context.Context) (string, error) {
 		time.Sleep(500 * time.Millisecond)
 
 		return "OK", nil
@@ -89,7 +90,7 @@ func TestFuture_OnCanceled(t *testing.T) {
 
 func TestFuture_OnTimedOut(t *testing.T) {
 	var resolved, rejected, canceled, timedOut, finished bool
-	New[string](func() (string, error) {
+	New[string](func(ctx context.Context) (string, error) {
 		time.Sleep(500 * time.Millisecond)
 
 		return "OK", nil
@@ -115,7 +116,7 @@ func TestFuture_OnTimedOut(t *testing.T) {
 
 func TestFuture_Commit(t *testing.T) {
 	t.Run("against fulfilment", func(t *testing.T) {
-		actualResult, err := New(func() (string, error) {
+		actualResult, err := New(func(ctx context.Context) (string, error) {
 			return "OK", nil
 		}).Await()
 		if assert.NoError(t, err) {
@@ -124,7 +125,7 @@ func TestFuture_Commit(t *testing.T) {
 	})
 
 	t.Run("against failure", func(t *testing.T) {
-		actualResult, err := New[string](func() (string, error) {
+		actualResult, err := New[string](func(ctx context.Context) (string, error) {
 			return "a", fmt.Errorf("failed")
 		}).Await()
 		assert.Equal(t, "", actualResult)
@@ -134,7 +135,7 @@ func TestFuture_Commit(t *testing.T) {
 	})
 
 	t.Run("against panic", func(t *testing.T) {
-		actualResult, err := New(func() (string, error) {
+		actualResult, err := New(func(ctx context.Context) (string, error) {
 			panic("aaaaaaaaaa")
 		}).Await()
 		assert.Equal(t, "", actualResult)
