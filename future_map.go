@@ -7,6 +7,7 @@ import (
 	"time"
 )
 
+// FutureMap is map of Future s for bulk parallel routines
 type FutureMap[T any] interface {
 	TimeOutLimit(timeOutLimit time.Duration) FutureMap[T]
 	Context(ctx context.Context) FutureMap[T]

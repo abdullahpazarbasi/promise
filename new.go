@@ -5,6 +5,7 @@ import (
 	"sync"
 )
 
+// New creates a promise as Future which is base of a progress
 func New[T any](async func(ctx context.Context) (T, error)) Future[T] {
 	return &future[T]{
 		async:                    async,

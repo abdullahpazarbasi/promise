@@ -2,6 +2,7 @@ package promise
 
 import "context"
 
+// ProgressMap is map of Progress es for bulk parallel routines
 type ProgressMap[T any] interface {
 	Cancel()
 	Await() *map[interface{}]Output[T]

@@ -6,6 +6,7 @@ import (
 	"sync"
 )
 
+// Progress is promise which is committed and can be awaited or canceled
 type Progress[T any] interface {
 	Cancel()
 	Await() (T, error)

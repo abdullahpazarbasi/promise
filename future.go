@@ -6,6 +6,7 @@ import (
 	"time"
 )
 
+// Future is promise which is not committed yet
 type Future[T any] interface {
 	TimeOutLimit(timeOutLimit time.Duration) Future[T]
 	Context(ctx context.Context) Future[T]

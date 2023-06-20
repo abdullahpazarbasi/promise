@@ -4,6 +4,7 @@ import (
 	"sync"
 )
 
+// NewMap creates a promise map as FutureMap
 func NewMap[T any](data map[interface{}]interface{}) FutureMap[T] {
 	if len(data) == 0 {
 		panic(unexpectedCaseError("empty map"))

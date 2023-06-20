@@ -2,6 +2,7 @@ package promise
 
 import "reflect"
 
+// Output is interface of structure for asynchronous function 's return values
 type Output[T any] interface {
 	Payload() T
 	Error() error
