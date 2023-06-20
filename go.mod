@@ -1,4 +1,4 @@
-module github.com/abdullahpazarbasi/promise
+module github.com/abdullahpazarbasi/promise/v3
 
 go 1.18
 

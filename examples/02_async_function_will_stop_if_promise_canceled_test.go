@@ -3,7 +3,7 @@ package examples
 import (
 	"context"
 	"fmt"
-	"github.com/abdullahpazarbasi/promise"
+	"github.com/abdullahpazarbasi/promise/v3"
 	"github.com/stretchr/testify/require"
 	"testing"
 	"time"

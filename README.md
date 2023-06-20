@@ -1,7 +1,8 @@
 # Go Promise
-[![Go Report Card](https://goreportcard.com/badge/github.com/abdullahpazarbasi/promise)](https://goreportcard.com/report/github.com/abdullahpazarbasi/promise)
-[![Build Status](https://github.com/abdullahpazarbasi/promise/actions/workflows/go.yml/badge.svg)](https://github.com/abdullahpazarbasi/promise/actions)
-[![Go Reference](https://pkg.go.dev/badge/github.com/abdullahpazarbasi/promise.svg)](https://pkg.go.dev/github.com/abdullahpazarbasi/promise)
+[![Check Status](https://github.com/abdullahpazarbasi/promise/actions/workflows/checks.yml/badge.svg)](https://github.com/abdullahpazarbasi/promise/actions/workflows/checks.yml)
+[![Test Status](https://github.com/abdullahpazarbasi/promise/actions/workflows/tests.yml/badge.svg)](https://github.com/abdullahpazarbasi/promise/actions/workflows/tests.yml)
+[![Go Report Card](https://goreportcard.com/badge/github.com/abdullahpazarbasi/promise/v3)](https://goreportcard.com/report/github.com/abdullahpazarbasi/promise/v3)
+[![Go Reference](https://pkg.go.dev/badge/github.com/abdullahpazarbasi/promise/v3.svg)](https://pkg.go.dev/github.com/abdullahpazarbasi/promise/v3)
 [![GitHub release (latest by date including pre-releases)](https://img.shields.io/github/v/release/abdullahpazarbasi/promise?display_name=tag&include_prereleases)](https://github.com/abdullahpazarbasi/promise/releases)
 [![GitHub](https://img.shields.io/github/license/abdullahpazarbasi/promise)](/LICENSE)
 
@@ -23,7 +24,7 @@ This library provides a promise interface similar to JavaScript 's
 - Race functionality
 - Automatic panic recovery
 - Fluent interface / Chain API
-- [No external dependency](https://pkg.go.dev/github.com/abdullahpazarbasi/promise?tab=imports)
+- [No external dependency](https://pkg.go.dev/github.com/abdullahpazarbasi/promise/v3?tab=imports)
 
 ## To-Do
 
@@ -32,7 +33,7 @@ This library provides a promise interface similar to JavaScript 's
 ## Installation
 
 ```shell
-go get github.com/abdullahpazarbasi/promise
+go get github.com/abdullahpazarbasi/promise/v3
 ```
 
 ## Usage
@@ -45,7 +46,7 @@ package foo
 import (
 	"context"
 	"fmt"
-	"github.com/abdullahpazarbasi/promise"
+	"github.com/abdullahpazarbasi/promise/v3"
 	"time"
 )
 
@@ -83,6 +84,10 @@ func myParentRoutine() error {
 ### Other Examples
 
 [examples](/examples)
+
+## Contributors
+
+> [List](https://github.com/abdullahpazarbasi/promise/graphs/contributors)
 
 ## License
 
